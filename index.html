@@ -13,7 +13,28 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app">
+  <main class="auth-screen" id="auth-screen" aria-labelledby="auth-title">
+    <section class="auth-card">
+      <div class="brand-mark auth-mark" data-icon="home" aria-hidden="true"></div>
+      <p class="eyebrow">RUANG PEMILIK</p>
+      <h1 id="auth-title">Masuk ke Kos Pak Gunawan</h1>
+      <p class="auth-description">Masuk untuk melihat dan menyimpan data pengelolaan kos.</p>
+      <form id="login-form" class="auth-form">
+        <label class="field">
+          <span>Email pemilik</span>
+          <input name="email" type="email" value="kost.pakgunawan@gmail.com" autocomplete="username" readonly required>
+        </label>
+        <label class="field">
+          <span>Kata sandi</span>
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button class="button button-primary auth-submit" type="submit">Masuk</button>
+        <p class="auth-message" id="auth-message" role="status" aria-live="polite"></p>
+      </form>
+      <p class="auth-footnote">Akun dibuat dan dikelola pemilik melalui Supabase. Pendaftaran publik tidak tersedia.</p>
+    </section>
+  </main>
+  <div class="app" id="app-root" hidden>
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark" data-icon="home"></div>
@@ -22,20 +43,22 @@
       <div class="nav-label">MENU UTAMA</div>
       <nav class="nav" id="navigation" aria-label="Navigasi utama"></nav>
       <div class="side-bottom">
-        <div class="local-note"><span data-icon="shield"></span><strong>Data tersimpan lokal</strong>Data berada di browser perangkat ini dan belum tersinkron ke cloud. Hubungkan database, seperti Supabase, nanti untuk sinkronisasi lintas perangkat.</div>
+        <div class="local-note" id="sync-status" role="status"><span data-icon="shield"></span><strong>Supabase</strong>Memeriksa status penyimpanan…</div>
       </div>
     </aside>
     <main class="main">
       <header class="topbar">
         <div class="mobile-brand"><div class="brand-mark" data-icon="home"></div> Kos Pak Gunawan</div>
         <div class="breadcrumb"><span>Workspace</span><span>/</span><strong id="crumb">Ringkasan</strong></div>
-        <div class="top-actions"><span class="today" id="today"></span><button class="icon-button notification-button" type="button" data-action="show-notifications" aria-label="Notifikasi tagihan" title="Notifikasi"></button><button class="button button-quiet button-small install-button" type="button" data-action="install-app" hidden>Pasang</button><button class="theme-toggle" type="button" data-action="toggle-theme" aria-label="Aktifkan mode gelap" title="Ganti tema"></button><div class="avatar" title="Pemilik kos">PG</div></div>
+        <div class="top-actions"><span class="today" id="today"></span><span class="sync-indicator" id="sync-indicator" role="status" aria-label="Status sinkronisasi: memeriksa" title="Status sinkronisasi"><span aria-hidden="true"></span></span><button class="icon-button notification-button" type="button" data-action="show-notifications" aria-label="Notifikasi tagihan" title="Notifikasi"></button><button class="button button-quiet button-small install-button" type="button" data-action="install-app" hidden>Pasang</button><button class="theme-toggle" type="button" data-action="toggle-theme" aria-label="Aktifkan mode gelap" title="Ganti tema"></button><button class="button button-quiet button-small" id="logout-button" type="button">Keluar</button><div class="avatar" title="Pemilik kos">PG</div></div>
       </header>
       <section class="content" id="content" aria-live="polite"></section>
     </main>
   </div>
   <div id="overlay"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer crossorigin=""></script>
-  <script src="js/app.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/auth.js" defer></script>
 </body>
 </html>

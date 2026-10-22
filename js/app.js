@@ -147,7 +147,12 @@
       };
       const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
       const persist = () => {
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); return true; }
+        try {
+          const snapshot = JSON.stringify(data);
+          localStorage.setItem(STORAGE_KEY, snapshot);
+          if (window.KosCloud) window.KosCloud.save(data);
+          return true;
+        }
         catch (error) { console.error("Data kos gagal disimpan.", error); toast("Gagal menyimpan data. Periksa kapasitas penyimpanan browser.", "error"); return false; }
       };
       const icon = name => icons[name] || "";
@@ -1014,10 +1019,6 @@
         if (button) button.hidden = true;
         toast("Kos Pak Gunawan berhasil dipasang.");
       });
-      if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
-        window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js")
-          .then(() => console.info("Penyimpanan offline aplikasi aktif."))
-          .catch(error => { console.error("Service worker gagal didaftarkan.", error); toast("Mode offline belum dapat diaktifkan.", "error"); }));
-      }
       render();
+      if (window.KosCloud) window.KosCloud.save(data);
     })();

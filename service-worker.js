@@ -1,10 +1,12 @@
-const CACHE_NAME = "kos-pak-gunawan-shell-v5";
+const CACHE_NAME = "kos-pak-gunawan-shell-v6";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./js/app.js",
   "./js/theme.js",
+  "./js/auth.js",
+  "./js/supabase-config.js",
   "./manifest.webmanifest",
   "./icons/kos.svg"
 ];
@@ -26,6 +28,16 @@ self.addEventListener("fetch", event => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== "GET" || url.origin !== self.location.origin) return;
+  if (url.pathname.endsWith("/js/supabase-config.js")) {
+    event.respondWith(fetch(request).then(response => {
+      if (response.ok) {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+      }
+      return response;
+    }).catch(() => caches.match(request)));
+    return;
+  }
   if (request.mode === "navigate") {
     event.respondWith(fetch(request).then(response => {
       const copy = response.clone();
