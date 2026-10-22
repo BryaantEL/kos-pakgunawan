@@ -177,11 +177,6 @@
   });
 
   async function initialize() {
-    if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
-      navigator.serviceWorker.register("./service-worker.js")
-        .then(() => console.info("Penyimpanan offline aplikasi aktif."))
-        .catch(error => console.error("Service worker gagal didaftarkan.", error));
-    }
     const config = window.KOS_SUPABASE_CONFIG;
     if (!window.supabase?.createClient) {
       setMessage("Layanan login tidak dapat dimuat. Periksa koneksi internet.", true);

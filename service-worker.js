@@ -1,13 +1,16 @@
-const CACHE_NAME = "kos-pak-gunawan-shell-v10";
+const CACHE_NAME = "kos-pak-gunawan-shell-v11";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=10",
+  "./styles.css?v=11",
   "./js/app.js",
   "./js/theme.js",
   "./js/auth.js",
+  "./js/sw-update.js",
   "./js/supabase-config.js",
   "./manifest.webmanifest",
+  "./icons/kos-192.png",
+  "./icons/kos-512.png",
   "./icons/kos.svg"
 ];
 
