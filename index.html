@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7f8">
+  <meta name="description" content="Dashboard pengelolaan kos Pak Gunawan.">
+  <title>Kos Pak Gunawan — Pengelolaan Kos</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="icons/kos.svg">
+  <script src="js/theme.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" data-icon="home"></div>
+        <div><div class="brand-title">Kos Pak Gunawan</div><div class="brand-subtitle">Property management</div></div>
+      </div>
+      <div class="nav-label">MENU UTAMA</div>
+      <nav class="nav" id="navigation" aria-label="Navigasi utama"></nav>
+      <div class="side-bottom">
+        <div class="local-note"><span data-icon="shield"></span><strong>Data tersimpan lokal</strong>Data berada di browser perangkat ini dan belum tersinkron ke cloud. Hubungkan database, seperti Supabase, nanti untuk sinkronisasi lintas perangkat.</div>
+      </div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div class="mobile-brand"><div class="brand-mark" data-icon="home"></div> Kos Pak Gunawan</div>
+        <div class="breadcrumb"><span>Workspace</span><span>/</span><strong id="crumb">Ringkasan</strong></div>
+        <div class="top-actions"><span class="today" id="today"></span><button class="icon-button notification-button" type="button" data-action="show-notifications" aria-label="Notifikasi tagihan" title="Notifikasi"></button><button class="button button-quiet button-small install-button" type="button" data-action="install-app" hidden>Pasang</button><button class="theme-toggle" type="button" data-action="toggle-theme" aria-label="Aktifkan mode gelap" title="Ganti tema"></button><div class="avatar" title="Pemilik kos">PG</div></div>
+      </header>
+      <section class="content" id="content" aria-live="polite"></section>
+    </main>
+  </div>
+  <div id="overlay"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer crossorigin=""></script>
+  <script src="js/app.js" defer></script>
+</body>
+</html>

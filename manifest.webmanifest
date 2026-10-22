@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "Kos Pak Gunawan",
+  "short_name": "Kos Gunawan",
+  "description": "Pengelolaan kamar, penyewa, tagihan, pembayaran, dan keuangan Kos Pak Gunawan.",
+  "lang": "id",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f6f8f7",
+  "theme_color": "#f6f8f7",
+  "icons": [
+    {
+      "src": "icons/kos.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
