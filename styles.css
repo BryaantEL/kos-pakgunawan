@@ -253,9 +253,15 @@
     .auth-card h1 { font-size: 25px; letter-spacing: -.7px; }
     .auth-description { color: var(--muted); line-height: 1.6; margin: 10px 0 25px; }
     .auth-form .field { margin-bottom: 16px; }
-    .auth-form .field span { color: var(--text-secondary); font-size: 12px; font-weight: 600; }
-    .auth-form .field input { width: 100%; min-height: 46px; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: var(--paper); color: var(--ink); }
+    .auth-form .field > label { color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+    .auth-form .field input { width: 100%; min-height: 46px; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: var(--paper); color: var(--ink); font-size: 16px; -webkit-text-fill-color: var(--ink); opacity: 1; }
     .auth-form .field input[readonly] { background: var(--surface-soft); }
+    .auth-password-control { display: flex; min-width: 0; align-items: stretch; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+    .auth-form .auth-password-control input { min-width: 0; border: 0; background: transparent; }
+    .auth-password-control:focus-within { border-color: #8db7a3; box-shadow: 0 0 0 3px #1f745812; }
+    .auth-form .auth-password-control input:focus { outline: none; box-shadow: none; }
+    .auth-password-toggle { flex: 0 0 auto; min-width: 64px; margin: 4px; padding: 0 10px; border: 0; border-radius: 7px; background: var(--surface-soft); color: var(--green); font-size: 12px; font-weight: 650; touch-action: manipulation; }
+    .auth-password-toggle:hover { background: var(--surface-hover); }
     .auth-submit { width: 100%; min-height: 46px; margin-top: 5px; font-size: 13px; }
     .auth-submit:disabled { cursor: wait; opacity: .72; }
     .auth-message { min-height: 18px; margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }

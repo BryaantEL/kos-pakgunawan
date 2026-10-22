@@ -7,6 +7,8 @@
   const appRoot = document.getElementById("app-root");
   const loginForm = document.getElementById("login-form");
   const loginButton = loginForm.querySelector('button[type="submit"]');
+  const passwordInput = loginForm.querySelector('input[name="password"]');
+  const passwordToggle = loginForm.querySelector(".auth-password-toggle");
   const message = document.getElementById("auth-message");
   const syncStatus = document.getElementById("sync-status");
   const syncIndicator = document.getElementById("sync-indicator");
@@ -15,6 +17,13 @@
   let saveQueue = Promise.resolve();
   let lastSnapshot = "";
   let appStarted = false;
+
+  passwordToggle.addEventListener("click", () => {
+    const isVisible = passwordInput.type === "text";
+    passwordInput.type = isVisible ? "password" : "text";
+    passwordToggle.textContent = isVisible ? "Lihat" : "Sembunyikan";
+    passwordToggle.setAttribute("aria-pressed", String(!isVisible));
+  });
 
   function setMessage(text, isError = false) {
     message.textContent = text;
