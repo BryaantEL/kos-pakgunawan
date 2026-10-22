@@ -2,6 +2,8 @@
       "use strict";
       const STORAGE_KEY = "kos-pak-gunawan.v1";
       const THEME_KEY = "kos-pak-gunawan.theme";
+      const DEFAULT_ROOM_RENT = 400000;
+      const MAP_ADDRESS = "QCPG+733, Kutan, Randugunting, Bergas, Semarang Regency, Central Java 50552";
       const pageNames = { dashboard: "Dashboard", rooms: "Data Kamar", tenants: "Penyewa", bills: "Tagihan", payments: "Pembayaran", expenses: "Pengeluaran", reports: "Laporan Keuangan", settings: "Pengaturan" };
       const navItems = [
         ["dashboard", "grid", "Dashboard"], ["rooms", "door", "Kamar"], ["tenants", "users", "Penyewa"],
@@ -51,7 +53,7 @@
       const newId = () => window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const propertyInfo = {
         name: "Kos Pak Gunawan",
-        address: "QCPG+733, Kutan, Randugunting, Kec. Bergas, Kabupaten Semarang, Jawa Tengah 50552",
+        address: MAP_ADDRESS,
         type: "Kos putri",
         floors: 2,
         facilities: [
@@ -74,7 +76,7 @@
         id: newId(),
         name: `Kamar ${String(index + 1).padStart(2, "0")}`,
         floor: index < 15 ? 1 : 2,
-        rent: null,
+        rent: DEFAULT_ROOM_RENT,
         notes: "",
         availabilityConfirmed: false
       }));
@@ -85,12 +87,18 @@
         for (const key of collections) if (!Array.isArray(data[key])) data[key] = [];
         if (!data.property || typeof data.property !== "object") data.property = propertyInfo;
         data.property = { ...propertyInfo, ...data.property };
+        data.property.address = MAP_ADDRESS;
         if (!Array.isArray(data.payments)) data.payments = [];
         if (!Array.isArray(data.adjustments)) data.adjustments = [];
         if (!Array.isArray(data.auditLog)) data.auditLog = [];
         if (!Array.isArray(data.categories)) data.categories = defaultCategories.map(name => ({ id: newId(), name, active: true }));
         if (!data.settings || typeof data.settings !== "object") data.settings = { ownerWhatsApp: "", mapLocation: null };
         data.settings = { ownerWhatsApp: "", mapLocation: null, ...data.settings };
+        if (!data.defaultRoomRentApplied) {
+          data.rooms = data.rooms.map(item => ({ ...item, rent: DEFAULT_ROOM_RENT }));
+          data.defaultRoomRentApplied = true;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
         if (!data.initialSetupComplete) {
           if (!raw || collections.every(key => data[key].length === 0)) data.rooms = seedRooms();
           data.initialSetupComplete = true;
@@ -132,11 +140,7 @@
       let dashboardRoomStatus = "all";
       let toastTimer;
       let pageTransition;
-      let mapInstance;
-      let mapMarker;
       let installPrompt;
-      let mapSearchResults = [];
-      let mapLastSearch = 0;
       const content = document.getElementById("content");
       const overlay = document.getElementById("overlay");
       const money = value => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -198,8 +202,12 @@
       const dueDateForMonth = (startDate, month) => {
         const originalDay = Number(startDate.slice(8, 10));
         const [year, monthNumber] = month.split("-").map(Number);
-        const day = Math.min(originalDay, lastDayOfMonth(year, monthNumber - 1));
-        return `${month}-${String(day).padStart(2, "0")}`;
+        const isMoveInMonth = startDate.slice(0, 7) === month;
+        const dueMonth = monthNumber - 1 + (isMoveInMonth ? 1 : 0);
+        const dueYear = year + Math.floor(dueMonth / 12);
+        const normalizedMonth = ((dueMonth % 12) + 12) % 12;
+        const day = Math.min(originalDay, lastDayOfMonth(dueYear, normalizedMonth));
+        return `${dueYear}-${String(normalizedMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       };
       const leaseMembers = leaseId => activeTenants().filter(item => item.leaseId === leaseId);
       const activeLeases = () => {
@@ -210,6 +218,16 @@
           return true;
         }).map(person => ({ person: leaseMembers(person.leaseId).find(item => item.isPrimary) || person, members: leaseMembers(person.leaseId) }));
       };
+      if (!data.billDueDatesMigrated) {
+        data.bills = data.bills.map(bill => {
+          const startDate = bill.startDate || tenant(bill.tenantId)?.startDate;
+          return /^\d{4}-\d{2}-\d{2}$/.test(startDate || "") && /^\d{4}-\d{2}$/.test(bill.month || "")
+            ? { ...bill, startDate, dueDate: dueDateForMonth(startDate, bill.month) }
+            : bill;
+        });
+        data.billDueDatesMigrated = true;
+        persist();
+      }
       const whatsappNumber = value => String(value || "").replace(/\D/g, "").replace(/^0/, "62");
       const audit = (entity, id, action, reason, before, after) => {
         data.auditLog.push({ id: newId(), entity, entityId: id, action, reason: reason || "", before, after, date: todayISO(), createdAt: new Date().toISOString() });
@@ -275,7 +293,6 @@
         document.getElementById("today").textContent = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
         const views = { dashboard: renderDashboard, rooms: renderRooms, tenants: renderTenants, bills: renderBills, payments: renderPayments, expenses: renderExpenses, reports: renderReports, settings: renderSettings };
         content.innerHTML = views[currentPage]();
-        if (currentPage === "dashboard") initializeSavedMap();
         if (transition && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
           pageTransition?.cancel();
           content.setAttribute("aria-busy", "true");
@@ -320,10 +337,8 @@
           return floorRooms.length ? `<section class="floor-section"><div class="floor-heading"><div><h2>Lantai ${floor}</h2><span>${floorRooms.length} kamar · ${data.property.bathrooms[floor]} kamar mandi bersama</span></div></div><div class="rooms-grid">${floorRooms.map(roomCardMarkup).join("")}</div></section>` : "";
         }).join("");
         return `${head("DASHBOARD PEMILIK", "Selamat datang, Pak Gunawan", `Ringkasan operasional dan keuangan kos Anda untuk ${monthLabel(selectedMonth)}.`, pageAction("Catat pengeluaran", "add-expense", "plus"))}
-          <section class="panel map-panel"><div class="panel-head"><div><div class="panel-title">Lokasi kos</div><div class="panel-subtitle">${esc(data.property.address)}</div></div><a class="button button-quiet button-small" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.property.address)}" target="_blank" rel="noopener noreferrer">Buka Google Maps ${icon("arrow")}</a></div>
-            <div class="map-search"><input id="map-search" class="search" type="search" value="${esc(data.property.address)}" placeholder="Cari alamat untuk menentukan posisi peta" aria-label="Cari lokasi kos"><button class="button button-primary button-small" data-action="search-map">Cari lokasi</button></div>
-            <div id="map-results" class="map-results" aria-live="polite"></div>
-            ${data.settings.mapLocation ? `<div class="map-warning">Hasil dapat menunjuk ke pusat area. Pastikan pin tepat di lokasi kos; ketuk peta atau geser pin untuk mengoreksi.</div><div id="property-map" class="property-map" aria-label="Peta interaktif lokasi kos"></div><div class="map-actions"><span class="map-attribution">© OpenStreetMap contributors · Geocoding Photon</span><button class="button button-quiet button-small" data-action="save-map-pin" hidden>Simpan posisi pin</button></div>` : `<div class="map-empty"><div class="map-empty-icon">${icon("map")}</div><strong>Konfirmasi lokasi pada peta</strong><span>Hasil pencarian menunjukkan area perkiraan. Pilih lokasi berbasis OpenStreetMap lalu koreksi pin sampai tepat di properti.</span><span class="map-attribution">Data © OpenStreetMap contributors · Geocoding Photon</span></div>`}
+          <section class="panel map-panel"><div class="panel-head"><div><div class="panel-title">Lokasi kos</div><div class="panel-subtitle">${esc(data.property.address)}</div></div><a class="button button-quiet button-small" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(MAP_ADDRESS)}" target="_blank" rel="noopener noreferrer">Buka Google Maps ${icon("arrow")}</a></div>
+            <div class="property-map"><iframe title="Peta lokasi Kos Pak Gunawan" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=${encodeURIComponent(MAP_ADDRESS)}&output=embed"></iframe></div>
           </section>
           <div class="metrics">
             ${metric("Pemasukan diterima", money(monthIncome(selectedMonth)), monthLabel(selectedMonth), "money")}
@@ -368,8 +383,8 @@
           return `<section class="floor-section"><div class="floor-heading"><div><h2>Lantai ${floor}</h2><span>${floorRooms.length} kamar · ${data.property.bathrooms[floor]} kamar mandi bersama</span></div><span class="floor-range">${floor === 1 ? "01–15" : "16–21"}</span></div><div class="rooms-grid">${floorRooms.map(item => cardsById.get(item.id)).join("")}</div></section>`;
         };
         const emptyRooms = query ? emptyState("Kamar tidak ditemukan", "Coba kata kunci pencarian yang lain.") : "";
-        return `${head("INVENTARIS PROPERTI", "Kamar", "Kelola 21 kamar di dua lantai. Tarif sewa bisa Anda isi kapan saja.", pageAction("Tambah kamar", "add-room"))}
-          <div class="page-toolbar"><span class="toolbar-note">${data.rooms.length} kamar · ${data.rooms.filter(item => configuredRent(item)).length} tarif sewa diatur · ${data.rooms.filter(item => !configuredRent(item)).length} tarif perlu diisi</span><div class="filter-group">${filterBox("Cari kamar...")}</div></div>
+        return `${head("INVENTARIS PROPERTI", "Kamar", "Kelola 21 kamar di dua lantai. Tarif awal Rp400.000 per kamar/bulan dan dapat disesuaikan.", pageAction("Tambah kamar", "add-room"))}
+          <div class="page-toolbar"><span class="toolbar-note">${data.rooms.length} kamar · tarif awal ${money(DEFAULT_ROOM_RENT)} per kamar/bulan</span><div class="filter-group">${filterBox("Cari kamar...")}</div></div>
           ${list.length ? `${floorCards(1)}${floorCards(2)}` : emptyRooms}`;
       }
       function renderTenants() {
@@ -393,7 +408,7 @@
         }).join("");
         const due = bills.reduce((sum, item) => sum + billBalance(item), 0);
         return `${head("PENAGIHAN SEWA", "Tagihan", "Buat tagihan bulanan dan pantau pembayaran setiap penyewa.", pageAction("Buat tagihan", "generate-bills"))}
-          <div class="note-banner"><strong>Perhitungan otomatis.</strong> Tagihan pertama dihitung prorata sejak tanggal masuk (inklusif). Tagihan berikutnya mengikuti tanggal masuk; bulan yang lebih pendek menyesuaikan tanggal jatuh tempo.</div>
+          <div class="note-banner"><strong>Perhitungan otomatis.</strong> Tagihan pertama dihitung prorata sejak tanggal masuk (inklusif) dan jatuh tempo satu bulan setelah tanggal masuk. Tagihan berikutnya jatuh tempo pada tanggal masuk di bulan tagihan; bulan yang lebih pendek menyesuaikan tanggal jatuh tempo.</div>
           <div class="page-toolbar"><span class="toolbar-note">${bills.length} tagihan · ${money(due)} belum lunas</span><div class="filter-group">${monthInput(selectedMonth, "page-month-picker")}</div></div>
           <section class="panel data-panel"><div class="panel-head"><div><div class="panel-title">Tagihan ${monthLabel(selectedMonth)}</div><div class="panel-subtitle">Pilih bulan untuk melihat tagihan terkait</div></div></div>
           ${bills.length ? `<div class="table-wrap"><table><thead><tr><th class="table-first">KONTAK TAGIHAN</th><th>KAMAR</th><th>NOMINAL</th><th>SUDAH DIBAYAR</th><th>STATUS</th><th>AKSI</th></tr></thead><tbody>${rows}</tbody></table></div>` : emptyState("Belum ada tagihan bulan ini", activeLeases().length ? "Buat tagihan untuk kontak utama setiap kamar berpenghuni." : "Daftarkan penyewa aktif terlebih dahulu untuk membuat tagihan.", activeLeases().length ? pageAction("Buat tagihan", "generate-bills") : "")}</section>`;
@@ -425,76 +440,9 @@
         const auditLabels = { ended: "Masa sewa diakhiri", adjusted: "Piutang disesuaikan", received: "Pembayaran dicatat", created: "Transaksi dicatat", updated: "Transaksi diperbarui", deleted: "Transaksi dihapus" };
         return `${head("PREFERENSI PEMILIK", "Pengaturan", "Kelola informasi properti, pengalaman aplikasi, dan cadangan data lokal.", "")}
           <section class="panel settings-panel"><div class="panel-head"><div><div class="panel-title">Pengingat pembayaran</div><div class="panel-subtitle">WhatsApp dibuka manual dari tombol pada tagihan</div></div></div><div class="panel-body"><p class="field-hint">Nomor telepon penyewa yang sudah dicatat akan digunakan untuk menyiapkan pesan pengingat. Pesan tidak dikirim otomatis, sehingga pemilik dapat memeriksanya terlebih dahulu.</p></div></section>
-          <section class="panel settings-panel"><div class="panel-head"><div><div class="panel-title">Data lokal & cadangan</div><div class="panel-subtitle">Saat ini data hanya tersimpan pada browser/perangkat ini</div></div></div><div class="panel-body"><p class="field-hint">Penyimpanan browser dapat dihapus dan belum tersinkron. Ekspor cadangan JSON secara berkala. Supabase Auth dan database dapat disiapkan setelah versi web siap.</p><button class="button button-quiet button-small" data-action="export-json">${icon("download")}Unduh cadangan</button></div></section>
+          <section class="panel settings-panel"><div class="panel-head"><div><div class="panel-title">Data lokal & cadangan</div><div class="panel-subtitle">Cadangkan atau pulihkan data kos</div></div></div><div class="panel-body"><p class="field-hint">Unduh cadangan JSON secara berkala. Saat memulihkan, isi data saat ini akan diganti dengan data pada berkas cadangan.</p><div class="backup-actions"><button class="button button-quiet button-small" data-action="export-json">${icon("download")}Unduh cadangan</button><button class="button button-quiet button-small" data-action="import-json">Unggah cadangan</button><input id="backup-file" type="file" accept="application/json,.json" hidden></div></div></section>
           <section class="panel settings-panel"><div class="panel-head"><div><div class="panel-title">Tentang properti</div><div class="panel-subtitle">${esc(data.property.name)} · ${esc(data.property.type)}</div></div></div><div class="panel-body"><p class="field-hint">${esc(data.property.address)}</p><p class="field-hint">${data.rooms.length} kamar · ${data.property.floors} lantai · listrik dasar termasuk sewa · air sumur sendiri (tanpa biaya air).</p></div></section>
           <section class="panel data-panel"><div class="panel-head"><div><div class="panel-title">Riwayat aktivitas</div><div class="panel-subtitle">Perubahan transaksi dan penyesuaian yang dicatat pemilik</div></div></div>${recentAudit.length ? `<div class="compact-bill-list">${recentAudit.map(item => `<div><span><strong>${esc(auditLabels[item.action] || item.action)}</strong><small>${formatDate(item.date)} · ${esc(item.reason || "Tanpa catatan")}</small></span><span>${esc(item.entity)}</span></div>`).join("")}</div>` : emptyState("Belum ada riwayat aktivitas", "Perubahan masa sewa dan transaksi akan dicatat di sini.")}</section>`;
-      }
-      function initializeSavedMap() {
-        const mapElement = document.getElementById("property-map");
-        if (!mapElement || !data.settings.mapLocation) return;
-        if (mapInstance) {
-          mapInstance.remove();
-          mapInstance = null;
-          mapMarker = null;
-        }
-        const location = data.settings.mapLocation;
-        if (window.L) {
-          mapInstance = window.L.map(mapElement).setView([location.lat, location.lng], location.zoom || 17);
-          window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(mapInstance);
-          mapMarker = window.L.marker([location.lat, location.lng], { draggable: true }).addTo(mapInstance);
-          mapInstance.on("click", event => {
-            mapMarker.setLatLng(event.latlng);
-            document.querySelector("[data-action='save-map-pin']").hidden = false;
-          });
-          mapMarker.on("dragend", () => { document.querySelector("[data-action='save-map-pin']").hidden = false; });
-          setTimeout(() => mapInstance.invalidateSize(), 100);
-          return;
-        }
-        mapElement.innerHTML = `<iframe title="Peta lokasi kos" loading="lazy" referrerpolicy="no-referrer" src="https://www.openstreetmap.org/export/embed.html?bbox=${location.lng - .006}%2C${location.lat - .004}%2C${location.lng + .006}%2C${location.lat + .004}&layer=mapnik&marker=${location.lat}%2C${location.lng}"></iframe>`;
-      }
-      async function searchMap() {
-        const search = document.getElementById("map-search");
-        const resultsNode = document.getElementById("map-results");
-        const queryText = search?.value.trim();
-        if (!queryText || !resultsNode) {
-          toast("Masukkan alamat yang ingin dicari.", "error");
-          return;
-        }
-        if (Date.now() - mapLastSearch < 1000) {
-          toast("Tunggu sebentar sebelum mencari alamat lagi.");
-          return;
-        }
-        mapLastSearch = Date.now();
-        resultsNode.innerHTML = `<div class="map-loading" role="status">Mencari alamat…</div>`;
-        const button = document.querySelector("[data-action='search-map']");
-        if (button) { button.disabled = true; button.textContent = "Mencari…"; }
-        try {
-          const searchQuery = queryText
-            .replace(/^[A-Z0-9]{4,}\+[A-Z0-9]{2,},?\s*/i, "")
-            .replace(/\bKec\.\s*/gi, "")
-            .replace(/\bJawa Tengah\b/gi, "Central Java")
-            .replace(/\b\d{5}\b/g, "")
-            .replace(/\s+/g, " ")
-            .replace(/,\s*,/g, ",")
-            .trim();
-          const response = await fetch(`https://photon.komoot.io/api/?limit=5&q=${encodeURIComponent(searchQuery)}`, { headers: { Accept: "application/json" } });
-          if (!response.ok) throw new Error(`Pencarian alamat gagal (${response.status}).`);
-          const result = await response.json();
-          mapSearchResults = (result.features || []).map(feature => {
-            const properties = feature.properties;
-            const displayName = [properties.name, properties.housenumber, properties.street, properties.district, properties.city, properties.state, properties.country]
-              .filter((part, index, parts) => part && parts.indexOf(part) === index).join(", ");
-            return { name: properties.name || displayName, display_name: displayName, lat: feature.geometry.coordinates[1], lon: feature.geometry.coordinates[0] };
-          });
-          resultsNode.innerHTML = mapSearchResults.length
-            ? `<div class="map-result-list">${mapSearchResults.map((item, index) => `<button class="map-result" type="button" data-action="select-map-result" data-id="${index}"><strong>${esc(item.name || item.display_name.split(",")[0])}</strong><span>${esc(item.display_name)}</span></button>`).join("")}</div>`
-            : `<div class="map-error">Tidak ada hasil alamat. Coba masukkan alamat lebih spesifik.</div>`;
-        } catch (error) {
-          console.error("Pencarian alamat OpenStreetMap gagal.", error);
-          resultsNode.innerHTML = `<div class="map-error">Pencarian gagal. Periksa koneksi internet dan coba kembali.</div>`;
-        } finally {
-          if (button) { button.disabled = false; button.innerHTML = `Cari lokasi`; }
-        }
       }
       function renderExpenses() {
         const list = data.expenses.filter(item => `${item.note} ${item.category}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => b.date.localeCompare(a.date));
@@ -544,7 +492,7 @@
           title = editing ? "Edit kamar" : "Tambah kamar";
           fields = `<div class="field"><label for="room-name">Nama kamar</label><input id="room-name" name="name" required maxlength="60" placeholder="Contoh: Kamar 01" value="${esc(existingRoom?.name || "")}"></div>
             <div class="field"><label for="room-floor">Lantai</label><select id="room-floor" name="floor" required><option value="1" ${existingRoom?.floor !== 2 ? "selected" : ""}>Lantai 1</option><option value="2" ${existingRoom?.floor === 2 ? "selected" : ""}>Lantai 2</option></select></div>
-            <div class="field full"><label for="room-rent">Harga sewa per bulan (Rp)</label><input id="room-rent" name="rent" type="number" min="1" step="1" placeholder="Belum ditentukan" value="${esc(existingRoom?.rent ?? "")}"><p class="field-hint">Biarkan kosong sampai harga sewa ditentukan. Tagihan tidak dapat dibuat tanpa tarif.</p></div>
+            <div class="field full"><label for="room-rent">Harga sewa per bulan (Rp)</label><input id="room-rent" name="rent" type="number" min="1" step="1" placeholder="${DEFAULT_ROOM_RENT}" value="${esc(existingRoom?.rent ?? DEFAULT_ROOM_RENT)}"><p class="field-hint">Tarif awal Rp400.000 per bulan. Ubah nominal ini jika tarif kamar berbeda.</p></div>
             <div class="field full"><label for="room-notes">Catatan (opsional)</label><textarea id="room-notes" name="notes" maxlength="300" placeholder="Fasilitas atau informasi kamar">${esc(existingRoom?.notes || "")}</textarea></div>`;
         } else if (type === "tenant") {
           title = editing ? "Edit penyewa" : "Tambah penyewa";
@@ -612,8 +560,8 @@
         } else {
           title = editing ? "Edit pengeluaran" : "Catat pengeluaran";
           description = "Masukkan transaksi operasional yang benar-benar terjadi.";
-          fields = `<div class="form-grid"><div class="field"><label for="expense-date">Tanggal transaksi</label><input id="expense-date" name="date" type="date" required value="${esc(existingExpense?.date || todayISO())}"></div>
-            <div class="field"><label for="expense-amount">Nominal (Rp)</label><input id="expense-amount" name="amount" type="number" min="1" step="1" required placeholder="Nominal transaksi" value="${esc(existingExpense?.amount ?? "")}"></div></div>
+          fields = `<div class="field"><label for="expense-date">Tanggal transaksi</label><input id="expense-date" name="date" type="date" required value="${esc(existingExpense?.date || todayISO())}"></div>
+            <div class="field"><label for="expense-amount">Nominal (Rp)</label><input id="expense-amount" name="amount" type="number" min="1" step="1" required placeholder="Nominal transaksi" value="${esc(existingExpense?.amount ?? "")}"></div>
             <div class="field"><label for="expense-category">Kategori</label><input id="expense-category" name="category" list="expense-categories" required maxlength="60" placeholder="Pilih atau ketik kategori" value="${esc(existingExpense?.category || "")}"><datalist id="expense-categories">${["Jasa angkut sampah", "Wi-Fi", "Galon", "Listrik", "Perbaikan", "Kebersihan", "Perlengkapan", "Pajak", "Lainnya"].map(value => `<option value="${value}">`).join("")}</datalist></div>
             <div class="field"><label for="expense-note">Catatan</label><input id="expense-note" name="note" required maxlength="120" placeholder="Catatan transaksi" value="${esc(existingExpense?.note || "")}"></div>`;
         }
@@ -659,7 +607,7 @@
           const amount = rentAmount + electronicsTotal;
           return {
             id: newId(), leaseId: person.leaseId || person.id, tenantId: person.id, tenantName: person.name, leaseMemberNames: membersInPeriod.map(member => member.name).join(", "), roomId: assignedRoom.id, roomName: assignedRoom.name,
-            month, rentAmount, fullRentAmount: Number(assignedRoom.rent), electronics, electronicsTotal,
+            month, startDate: person.startDate, rentAmount, fullRentAmount: Number(assignedRoom.rent), electronics, electronicsTotal,
             fullAmount, prorataDays: daysCharged, amount, dueDate: dueDateForMonth(person.startDate, month), status: "due", paidAt: null
           };
         });
@@ -742,16 +690,8 @@
             const installButton = document.querySelector(".install-button");
             if (installButton) installButton.hidden = true;
           }).catch(error => { console.error("Dialog pemasangan aplikasi gagal.", error); toast("Aplikasi tidak dapat dipasang saat ini.", "error"); });
-        } else if (action === "search-map") searchMap();
-        else if (action === "select-map-result") {
-          const result = mapSearchResults[Number(id)];
-          if (!result) return;
-          data.settings.mapLocation = { lat: Number(result.lat), lng: Number(result.lon), zoom: 17 };
-          if (persist()) { toast("Lokasi dipilih. Periksa posisi pin sebelum menyimpan."); render(); }
-        } else if (action === "save-map-pin" && mapMarker) {
-          const position = mapMarker.getLatLng();
-          data.settings.mapLocation = { lat: position.lat, lng: position.lng, zoom: mapInstance.getZoom() };
-          if (persist()) { toast("Posisi peta berhasil disimpan."); render(); }
+        } else if (action === "import-json") {
+          document.getElementById("backup-file")?.click();
         } else if (action === "room-detail") {
           setPage("rooms");
           const card = document.querySelector(`[data-room-id="${CSS.escape(id)}"]`);
@@ -796,6 +736,34 @@
           downloadFile(`cadangan-kos-${todayISO()}.json`, JSON.stringify({ exportedAt: new Date().toISOString(), version: 1, ...data }, null, 2), "application/json;charset=utf-8");
           toast("Cadangan data berhasil diunduh.");
         } else if (action === "export-csv") exportCsv();
+      }
+      async function importBackup(file) {
+        try {
+          const parsed = JSON.parse(await file.text());
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) ||
+            !["rooms", "tenants", "bills", "payments", "expenses", "adjustments", "auditLog", "categories"].every(key => Array.isArray(parsed[key]))) {
+            throw new Error("Format cadangan tidak sesuai. Gunakan file JSON hasil ekspor aplikasi ini.");
+          }
+          if (!window.confirm("Pulihkan data dari cadangan ini? Data saat ini akan diganti.")) return;
+          const previousData = data;
+          data = {
+            ...emptyData(),
+            ...parsed,
+            property: { ...propertyInfo, ...(parsed.property || {}), address: MAP_ADDRESS },
+            settings: { ownerWhatsApp: "", mapLocation: null, ...(parsed.settings || {}) },
+            defaultRoomRentApplied: true
+          };
+          if (!persist()) {
+            data = previousData;
+            return;
+          }
+          query = "";
+          toast("Cadangan berhasil dipulihkan.");
+          render();
+        } catch (error) {
+          console.error("Pemulihan cadangan gagal.", error);
+          toast(`Cadangan tidak dapat dipulihkan: ${error.message}`, "error");
+        }
       }
       function handleFormSubmit(form) {
         if (form.id === "settings-form") {
@@ -983,7 +951,11 @@
         }
       });
       document.addEventListener("change", event => {
-        if (["month-picker", "page-month-picker", "report-month-picker", "payment-month-picker"].includes(event.target.id) && /^\d{4}-\d{2}$/.test(event.target.value)) {
+        if (event.target.id === "backup-file") {
+          const [file] = event.target.files || [];
+          if (file) void importBackup(file);
+          event.target.value = "";
+        } else if (["month-picker", "page-month-picker", "report-month-picker", "payment-month-picker"].includes(event.target.id) && /^\d{4}-\d{2}$/.test(event.target.value)) {
           selectedMonth = event.target.value;
           render();
         } else if (event.target.id === "room-floor-filter") {
