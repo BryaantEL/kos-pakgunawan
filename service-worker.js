@@ -1,8 +1,8 @@
-const CACHE_NAME = "kos-pak-gunawan-shell-v6";
+const CACHE_NAME = "kos-pak-gunawan-shell-v7";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css",
+  "./styles.css?v=7",
   "./js/app.js",
   "./js/theme.js",
   "./js/auth.js",
