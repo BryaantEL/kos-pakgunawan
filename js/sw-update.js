@@ -4,6 +4,15 @@
   if (!("serviceWorker" in navigator) || !/^https?:$/.test(location.protocol)) return;
 
   const hadController = Boolean(navigator.serviceWorker.controller);
+  window.addEventListener("beforeinstallprompt", event => {
+    event.preventDefault();
+    window.kosInstallPrompt = event;
+    window.dispatchEvent(new Event("kos-install-available"));
+  });
+  window.addEventListener("appinstalled", () => {
+    window.kosInstallPrompt = null;
+  });
+
   if (hadController) {
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       location.reload();

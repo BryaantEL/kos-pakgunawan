@@ -41,6 +41,7 @@
         close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m18 6-12 12M6 6l12 12"/></svg>',
         trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18m-2 0-.9 14H5.9L5 6m4 0V4h6v2m-5 4v6m4-6v6"/></svg>',
         download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3"/></svg>',
+        install: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 7v7m-3-3 3 3 3-3m-5 6h4"/></svg>',
         moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/></svg>',
         sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>',
         file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/></svg>'
@@ -140,7 +141,7 @@
       let dashboardRoomStatus = "all";
       let toastTimer;
       let pageTransition;
-      let installPrompt;
+      let installPrompt = window.kosInstallPrompt || null;
       const content = document.getElementById("content");
       const overlay = document.getElementById("overlay");
       const money = value => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -439,6 +440,7 @@
         const recentAudit = [...data.auditLog].reverse().slice(0, 8);
         const auditLabels = { ended: "Masa sewa diakhiri", adjusted: "Piutang disesuaikan", received: "Pembayaran dicatat", created: "Transaksi dicatat", updated: "Transaksi diperbarui", deleted: "Transaksi dihapus" };
         return `${head("PREFERENSI PEMILIK", "Pengaturan", "Kelola informasi properti, pengalaman aplikasi, dan cadangan data lokal.", "")}
+          <section class="panel settings-panel"><div class="panel-head"><div><div class="panel-title">Pasang aplikasi di HP</div><div class="panel-subtitle">Akses Kos Pak Gunawan langsung dari layar utama</div></div><button class="button button-primary button-small" type="button" data-action="install-app">${icon("install")}Instal aplikasi</button></div><div class="panel-body"><p class="field-hint">Pasang sebagai aplikasi agar lebih mudah dibuka. Jika dialog instal tidak muncul, petunjuk pemasangan akan ditampilkan.</p></div></section>
           <section class="panel settings-panel"><div class="panel-head"><div><div class="panel-title">Pengingat pembayaran</div><div class="panel-subtitle">WhatsApp dibuka manual dari tombol pada tagihan</div></div></div><div class="panel-body"><p class="field-hint">Nomor telepon penyewa yang sudah dicatat akan digunakan untuk menyiapkan pesan pengingat. Pesan tidak dikirim otomatis, sehingga pemilik dapat memeriksanya terlebih dahulu.</p></div></section>
           <section class="panel settings-panel"><div class="panel-head"><div><div class="panel-title">Data lokal & cadangan</div><div class="panel-subtitle">Cadangkan atau pulihkan data kos</div></div></div><div class="panel-body"><p class="field-hint">Unduh cadangan JSON secara berkala. Saat memulihkan, isi data saat ini akan diganti dengan data pada berkas cadangan.</p><div class="backup-actions"><button class="button button-quiet button-small" data-action="export-json">${icon("download")}Unduh cadangan</button><button class="button button-quiet button-small" data-action="import-json">Unggah cadangan</button><input id="backup-file" type="file" accept="application/json,.json" hidden></div></div></section>
           <section class="panel settings-panel"><div class="panel-head"><div><div class="panel-title">Tentang properti</div><div class="panel-subtitle">${esc(data.property.name)} · ${esc(data.property.type)}</div></div></div><div class="panel-body"><p class="field-hint">${esc(data.property.address)}</p><p class="field-hint">${data.rooms.length} kamar · ${data.property.floors} lantai · listrik dasar termasuk sewa · air sumur sendiri (tanpa biaya air).</p></div></section>
@@ -632,6 +634,19 @@
         link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
+      function showInstallInstructions() {
+        if (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true) {
+          toast("Aplikasi sudah dibuka dalam mode terpasang.");
+          return;
+        }
+        overlay.innerHTML = `<div class="modal-backdrop" data-close-modal><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+          <div class="modal-head"><div><h2 id="modal-title">Pasang Kos Pak Gunawan</h2><p>Jika dialog instal otomatis tidak tersedia, gunakan menu browser.</p></div><button class="modal-close" type="button" aria-label="Tutup" data-close-modal>${icon("close")}</button></div>
+          <div class="modal-form"><div class="note-banner"><strong>Android · Chrome</strong><br>Buka menu ⋮ di Chrome, lalu pilih “Instal aplikasi” atau “Tambahkan ke layar utama”.</div>
+            <div class="note-banner"><strong>iPhone/iPad · Safari</strong><br>Ketuk tombol Bagikan, lalu pilih “Tambahkan ke Layar Utama”.</div>
+            <div class="note-banner"><strong>Komputer · Chrome/Edge</strong><br>Gunakan ikon instal di bilah alamat atau menu browser untuk memasang aplikasi.</div>
+            <div class="modal-actions"><button class="button button-primary" type="button" data-close-modal>Tutup</button></div>
+          </div></section></div>`;
+      }
       function csvCell(value) {
         let text = String(value ?? "");
         if (/^[=+\-@]/.test(text)) text = `'${text}`;
@@ -682,14 +697,24 @@
         else if (action === "generate-bills") createBills();
         else if (action === "more-pages") openMoreMenu();
         else if (action === "show-notifications") { setPage("bills"); selectedMonth = monthNow(); render(); }
-        else if (action === "install-app" && installPrompt) {
-          installPrompt.prompt();
-          installPrompt.userChoice.then(result => {
-            if (result.outcome === "accepted") toast("Aplikasi berhasil dipasang.");
-            installPrompt = null;
-            const installButton = document.querySelector(".install-button");
-            if (installButton) installButton.hidden = true;
-          }).catch(error => { console.error("Dialog pemasangan aplikasi gagal.", error); toast("Aplikasi tidak dapat dipasang saat ini.", "error"); });
+        else if (action === "install-app") {
+          const prompt = installPrompt || window.kosInstallPrompt;
+          if (!prompt) { showInstallInstructions(); return; }
+          void (async () => {
+            try {
+              await prompt.prompt();
+              const result = await prompt.userChoice;
+              if (result.outcome === "accepted") toast("Aplikasi berhasil dipasang.");
+              installPrompt = null;
+              window.kosInstallPrompt = null;
+              const installButton = document.querySelector(".install-button");
+              if (installButton) installButton.hidden = true;
+            } catch (error) {
+              console.error("Dialog pemasangan aplikasi gagal.", error);
+              toast("Dialog instal tidak dapat dibuka. Ikuti petunjuk pemasangan.", "error");
+              showInstallInstructions();
+            }
+          })();
         } else if (action === "import-json") {
           document.getElementById("backup-file")?.click();
         } else if (action === "room-detail") {
@@ -979,18 +1004,20 @@
         if (event.key === "Escape") overlay.innerHTML = "";
       });
       document.querySelectorAll("[data-icon]").forEach(node => { node.innerHTML = icon(node.dataset.icon); });
-      window.addEventListener("beforeinstallprompt", event => {
-        event.preventDefault();
-        installPrompt = event;
+      window.addEventListener("kos-install-available", () => {
+        installPrompt = window.kosInstallPrompt || null;
         const button = document.querySelector(".install-button");
-        if (button) button.hidden = false;
+        if (button) button.hidden = !installPrompt;
       });
       window.addEventListener("appinstalled", () => {
         installPrompt = null;
+        window.kosInstallPrompt = null;
         const button = document.querySelector(".install-button");
         if (button) button.hidden = true;
         toast("Kos Pak Gunawan berhasil dipasang.");
       });
+      const installButton = document.querySelector(".install-button");
+      if (installButton) installButton.hidden = !installPrompt;
       render();
       if (window.KosCloud) window.KosCloud.save(data);
     })();
